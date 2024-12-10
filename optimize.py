@@ -5,17 +5,19 @@ import os
 import sys
 
 EPS = 0.00001
-REGIMES = ["max=m", "max=RL13", "max=LR12"]
+REGIMES = ["min=1", "min=m^3/(R^3 L)", "min=m^4/(L^4 R^2)"]
+BOOLS = [True, False]
 
 def compare_le0_ge1(a,b,direction):
-    if direction == 0:
-        return a <= b
-    elif direction == 1:
+    if direction:
         return a >= b
-    assert False
+    else:
+        return a <= b
 
-def solve_case(large12, large23, regime12, regime23):
-    assert large12 in [0,1] and large23 in [0,1]
+def solve_case(large12, large23, regime12, regime23, 
+               balance12, balance23, anyhex12, anyhex23):
+    for param in [large12, large23, balance12, balance23, anyhex12, anyhex23]:
+        assert param in BOOLS
     assert regime12 in REGIMES and regime23 in REGIMES
 
     LP = p.LpProblem('cappedwalksLP', p.LpMaximize)
@@ -54,30 +56,46 @@ def solve_case(large12, large23, regime12, regime23):
     maxW2W3 = W2 if large23 else W3
     minW2W3 = W3 if large23 else W2
 
+    # now we figure out whether we are supposed to award C6s or not
+    LP += compare_le0_ge1((2/3)*(W1+W2), maxW1W2, balance12)
+    edgereq12 = (2/3)*(W1+W2) if balance12 else maxW1W2
+    LP += compare_le0_ge1((2/3)*(W3+W2), maxW2W3, balance23)
+    edgereq23 = (2/3)*(W3+W2) if balance23 else maxW2W3
+
+    LP += compare_le0_ge1(W1+d1, edgereq12, anyhex12)
+    LP += compare_le0_ge1(W2+d2, edgereq23, anyhex23)
+
     # now we compute the number of C6's
     # 1. enforce that we are in the right regime.
     # 2. award C6's corresponding to this regime
 
     def add_constraints_count_c6s(e, L, R, regime, LP):
-        RL13 = R+L*(1/3)
-        LR12 = L+R*(1/2)
+        m3R3L = 3*e - 3*R - L
+        m4L4R2 = 4*e - 4*L - 2*R
+        base = 6*e - 3*L - 3*R
 
-        if regime == "max=m":
-            LP += e >= RL13
-            LP += e >= LR12
-            return 6*e - 3*(L+R)
-        elif regime == "max=RL13":
-            LP += e <= RL13
-            LP += RL13 <= LR12
-        elif regime == "max=LR12":
-            LP += e <= LR12
-            LP += RL13 >= LR12
+        REGIMES = ["min=1", "min=m^3/(R^3 L)", "min=m^4/(L^4 R^2)"]
+
+        if regime == "min=1":
+            LP += 0 <= m3R3L
+            LP += 0 <= m4L4R2
+            return base
+        elif regime == "min=m^3/(R^3 L)":
+            LP += m3R3L <= 0
+            LP += m3R3L <= m4L4R2
+            return base + m3R3L
+        elif regime == "min=m^4/(L^4 R^2)":
+            LP += m4L4R2 <= 0
+            LP += m4L4R2 <= m3R3L
+            return base + m4L4R2
         else: 
             assert False
-        return 0
 
-    t12 = add_constraints_count_c6s(d1+W1, minW1W2, maxW1W2, regime12, LP)
-    t23 = add_constraints_count_c6s(d2+W2, minW2W3, maxW2W3, regime23, LP)
+    t12 = 0; t23 = 0
+    if anyhex12:
+        t12 = add_constraints_count_c6s(d1+W1, minW1W2, maxW1W2, regime12, LP)
+    if anyhex23:
+        t23 = add_constraints_count_c6s(d2+W2, minW2W3, maxW2W3, regime23, LP)
     
     # Number of C6's must be less than number of capped walks
     LP += W1+d1+d2+d3 >= t12
@@ -112,12 +130,14 @@ def solve_case(large12, large23, regime12, regime23):
 
 max_alpha = 1
 ct = 0
-for thiscase in product([0,1], [0,1], REGIMES, REGIMES):
-    large12, large23, regime12, regime23 = thiscase
+for thiscase in product(BOOLS, BOOLS, REGIMES, REGIMES,
+                        BOOLS, BOOLS, BOOLS, BOOLS):
+    large12, large23, regime12, regime23,_,_,_,_ = thiscase
     ct += 1
     W1W2 = "W1 >= W2" if large12 else "W1 <= W2"
     W2W3 = "W2 >= W3" if large23 else "W2 <= W3"
     print(f"ct:{ct} \t{W1W2}, {W2W3}, \t{regime12}, {regime23}\n")
+    print(thiscase)
     alpha = solve_case(*thiscase)
     if alpha > max_alpha:
         max_alpha = alpha
