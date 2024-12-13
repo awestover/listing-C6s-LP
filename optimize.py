@@ -57,9 +57,9 @@ def solve_case(large12, large23, regime12, regime23,
     minW2W3 = W3 if large23 else W2
 
     # now we figure out whether we are supposed to award C6s or not
-    LP += compare_le0_ge1((2/3)*(W1+W2), maxW1W2, balance12)
+    LP += compare_le0_ge1(2*minW1W2, maxW1W2, balance12)
     edgereq12 = (2/3)*(W1+W2) if balance12 else maxW1W2
-    LP += compare_le0_ge1((2/3)*(W3+W2), maxW2W3, balance23)
+    LP += compare_le0_ge1(2*minW2W3, maxW2W3, balance23)
     edgereq23 = (2/3)*(W3+W2) if balance23 else maxW2W3
 
     LP += compare_le0_ge1(W1+d1, edgereq12, anyhex12)
